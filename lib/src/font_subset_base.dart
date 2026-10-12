@@ -44,6 +44,7 @@ Future<bool> isSupportedFontFile(File file) async {
 /// Throws a [FontSubsetException] if the binary cannot be fetched or built.
 Future<File> fontSubsetExecutable({
   BuildModeEnum? buildMode,
+  Uri? checkoutPath,
   Uri? localPath,
   Uri? cacheDirectory,
 }) async {
@@ -72,7 +73,7 @@ Future<File> fontSubsetExecutable({
       'Unable to resolve package:font_subset/font_subset.dart URI.',
     );
   }
-  final packageRoot = libraryUri.resolve('../');
+  final packageRoot = checkoutPath ?? libraryUri.resolve('../');
   final sharedCache = cacheDirectory ?? _defaultCacheDirectory();
 
   try {

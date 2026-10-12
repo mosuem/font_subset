@@ -31,5 +31,5 @@ hooks:
 ```
 
 - **`fetch`** *(default)*: Downloads prebuilt binaries from GitHub Releases verified against pinned SHA-256 checksums, falling back to local CMake compilation if unavailable.
-- **`checkout`** / **`build`**: Always compiles `font-subset` locally from bundled C++ and HarfBuzz sources via CMake.
+- **`checkout`**: Always compiles `font-subset` locally from C++ and HarfBuzz sources via CMake (using `checkoutPath` if specified, or the bundled sources in this package).
 - **`local`**: Uses a custom prebuilt `font-subset` binary at `localPath`.

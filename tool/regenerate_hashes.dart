@@ -7,7 +7,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:font_subset/src/hook_helpers/sha256.dart';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:font_subset/src/hook_helpers/targets.dart';
 import 'package:font_subset/src/hook_helpers/version.dart';
 
@@ -29,7 +29,7 @@ Future<void> main(List<String> args) async {
         stdout.writeln('  Skipping missing local file: ${file.path}');
         continue;
       }
-      final fileHash = sha256Hex(await file.readAsBytes());
+      final fileHash = sha256.convert(await file.readAsBytes()).toString();
       fileHashes[assetName] = fileHash;
       stdout.writeln('  $assetName: $fileHash');
       continue;
@@ -50,7 +50,7 @@ Future<void> main(List<String> args) async {
       }
       final builder = BytesBuilder(copy: false);
       await response.forEach(builder.add);
-      final fileHash = sha256Hex(builder.takeBytes());
+      final fileHash = sha256.convert(builder.takeBytes()).toString();
       fileHashes[assetName] = fileHash;
       stdout.writeln('  $assetName: $fileHash');
     } on Object catch (e) {

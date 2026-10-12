@@ -5,10 +5,10 @@
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:hooks/hooks.dart';
 
 import 'hashes.dart' show fileHashes, version;
-import 'sha256.dart' show sha256Hex;
 import 'targets.dart' show executableFileName, releaseAssetName;
 
 /// Downloads and verifies the pre-built `font-subset` executable for [targetOS]
@@ -43,7 +43,9 @@ Future<Uri?> fetchPrebuiltExecutable({
         .resolve(fileName),
   );
   if (await cachedFile.exists()) {
-    final cachedHash = sha256Hex(await cachedFile.readAsBytes());
+    final cachedHash = sha256
+        .convert(await cachedFile.readAsBytes())
+        .toString();
     if (cachedHash == expectedHash) {
       stdout.writeln(
         'font_subset: using cached prebuilt binary ($assetRemoteName).',
@@ -81,7 +83,7 @@ Future<Uri?> fetchPrebuiltExecutable({
     client.close();
   }
 
-  final actualHash = sha256Hex(bytes);
+  final actualHash = sha256.convert(bytes).toString();
 
   if (actualHash != expectedHash) {
     throw BuildError(

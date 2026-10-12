@@ -2,11 +2,10 @@
 // for details. All rights reserved. Use of this source code is governed by a
 // BSD-style license that can be found in the LICENSE file.
 
-import 'dart:convert' show base64Decode, utf8;
+import 'dart:convert' show base64Decode;
 import 'dart:io' show Directory, File;
 
 import 'package:font_subset/font_subset.dart';
-import 'package:font_subset/src/hook_helpers/sha256.dart';
 import 'package:test/test.dart';
 
 /// Roboto Regular subset containing the three glyphs `h` (104), `k` (107),
@@ -109,19 +108,6 @@ void main() {
           localPath: Uri.file('${tempDir.path}/missing_font_subset'),
         ),
         throwsA(isA<FontSubsetException>()),
-      );
-    });
-  });
-
-  group('sha256Hex', () {
-    test('computes standard SHA-256 digests', () {
-      expect(
-        sha256Hex(const <int>[]),
-        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      );
-      expect(
-        sha256Hex(utf8.encode('abc')),
-        'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
       );
     });
   });

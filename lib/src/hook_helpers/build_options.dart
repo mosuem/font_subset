@@ -13,10 +13,9 @@ enum BuildModeEnum {
   /// unavailable).
   fetch,
 
-  /// Compile `font-subset` locally from bundled C++/HarfBuzz sources via CMake.
-  build,
-
-  /// Alias for [build]: compile `font-subset` locally from bundled sources.
+  /// Compile `font-subset` locally from C++/HarfBuzz sources via CMake (using
+  /// [BuildOptions.checkoutPath] if provided, or the bundled sources in this
+  /// package).
   checkout,
 
   /// Use a user-specified local `font-subset` binary at
@@ -28,7 +27,7 @@ enum BuildModeEnum {
 /// `pubspec.yaml` (or the `FONT_SUBSET_BUILD_MODE` environment variable).
 class BuildOptions {
   /// Creates [BuildOptions].
-  BuildOptions({required this.buildMode, this.localPath});
+  BuildOptions({required this.buildMode, this.checkoutPath, this.localPath});
 
   /// Parses [BuildOptions] from [defines].
   factory BuildOptions.fromDefines(HookInputUserDefines defines) {
@@ -44,6 +43,7 @@ class BuildOptions {
           '${BuildModeEnum.values.map((e) => e.name).join(', ')}.',
         ),
       ),
+      checkoutPath: defines.path('checkoutPath'),
       localPath: defines.path('localPath'),
     );
   }
@@ -51,11 +51,16 @@ class BuildOptions {
   /// Selected build mode.
   final BuildModeEnum buildMode;
 
+  /// Optional path to a `font_subset` source checkout when [buildMode] is
+  /// [BuildModeEnum.checkout]. Defaults to the bundled sources in this package.
+  final Uri? checkoutPath;
+
   /// Path to a prebuilt `font-subset` binary when [buildMode] is
   /// [BuildModeEnum.local].
   final Uri? localPath;
 
   @override
   String toString() =>
-      'BuildOptions(buildMode: $buildMode, localPath: $localPath)';
+      'BuildOptions(buildMode: $buildMode, checkoutPath: $checkoutPath, '
+      'localPath: $localPath)';
 }

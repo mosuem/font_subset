@@ -27,9 +27,12 @@ Future<void> main(List<String> args) async {
     switch (buildOptions.buildMode) {
       case BuildModeEnum.fetch:
         executableUri = await _fetchOrBuild(input, output);
-      case BuildModeEnum.build:
       case BuildModeEnum.checkout:
-        executableUri = await _buildCMake(input, output);
+        executableUri = await _buildCMake(
+          input,
+          output,
+          checkoutPath: buildOptions.checkoutPath,
+        );
       case BuildModeEnum.local:
         executableUri = await _useLocalBinary(
           input,
@@ -72,16 +75,21 @@ Future<Uri> _fetchOrBuild(BuildInput input, BuildOutputBuilder output) async {
   return _buildCMake(input, output);
 }
 
-Future<Uri> _buildCMake(BuildInput input, BuildOutputBuilder output) async {
+Future<Uri> _buildCMake(
+  BuildInput input,
+  BuildOutputBuilder output, {
+  Uri? checkoutPath,
+}) async {
+  final sourceRoot = checkoutPath ?? input.packageRoot;
   final targetTriple = targetTripleFor(OS.current, Architecture.current);
   final builtUri = await buildFontSubsetWithCMake(
-    packageRoot: input.packageRoot,
+    packageRoot: sourceRoot,
     buildDir: input.outputDirectoryShared.resolve('cmake-build-$targetTriple/'),
     installDir: input.outputDirectoryShared.resolve(
       'cmake-install-$targetTriple/',
     ),
   );
-  output.dependencies.addAll(buildDependencies(input.packageRoot));
+  output.dependencies.addAll(buildDependencies(sourceRoot));
   return builtUri;
 }
 
