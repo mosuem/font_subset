@@ -3,11 +3,17 @@
 // BSD-style license that can be found in the LICENSE file.
 
 import 'dart:convert' show utf8;
-import 'dart:ffi' show Abi;
-import 'dart:io' show File, Platform, Process;
+import 'dart:io' show Directory, File, Platform, Process;
 import 'dart:isolate' show Isolate;
 
+import 'package:code_assets/code_assets.dart';
 import 'package:mime/mime.dart' as mime;
+
+import 'hook_helpers/build_options.dart' show BuildModeEnum;
+import 'hook_helpers/cmake_build.dart' show buildFontSubsetWithCMake;
+import 'hook_helpers/fetch.dart'
+    show ensureExecutablePermission, fetchPrebuiltExecutable;
+import 'hook_helpers/targets.dart' show targetTripleFor;
 
 /// The MIME types recognized as TTF/OTF font files that `font-subset` can
 /// process.
@@ -31,24 +37,32 @@ Future<bool> isSupportedFontFile(File file) async {
   return kSupportedFontMimeTypes.contains(mimeType);
 }
 
-/// Resolves the bundled `font-subset` executable for the given host [abi]
-/// (defaults to [Abi.current]).
+/// Resolves the `font-subset` executable for the current host, using the given
+/// [buildMode] (defaults to `FONT_SUBSET_BUILD_MODE` or [BuildModeEnum.fetch],
+/// falling back to building from bundled C++/HarfBuzz sources with CMake).
 ///
-/// Throws a [FontSubsetException] if [abi] is not supported or the binary
-/// cannot be located.
-Future<File> fontSubsetExecutable({Abi? abi}) async {
-  final targetAbi = abi ?? Abi.current();
-  final (dirName, exeName) = switch (targetAbi) {
-    Abi.linuxX64 => ('linux-x64', 'font-subset'),
-    Abi.linuxArm64 => ('linux-arm64', 'font-subset'),
-    Abi.macosX64 => ('darwin-x64', 'font-subset'),
-    Abi.macosArm64 => ('darwin-arm64', 'font-subset'),
-    Abi.windowsX64 => ('windows-x64', 'font-subset.exe'),
-    Abi.windowsArm64 => ('windows-arm64', 'font-subset.exe'),
-    _ => throw FontSubsetException(
-      'Unsupported host ABI for font-subset: $targetAbi.',
-    ),
-  };
+/// Throws a [FontSubsetException] if the binary cannot be fetched or built.
+Future<File> fontSubsetExecutable({
+  BuildModeEnum? buildMode,
+  Uri? localPath,
+  Uri? cacheDirectory,
+}) async {
+  final effectiveMode = buildMode ?? _defaultBuildMode();
+  if (effectiveMode == BuildModeEnum.local) {
+    if (localPath == null) {
+      throw const FontSubsetException(
+        'buildMode is `local`, but `localPath` was not provided.',
+      );
+    }
+    final file = File.fromUri(localPath);
+    if (!file.existsSync()) {
+      throw FontSubsetException(
+        'Local font-subset binary does not exist at ${file.path}.',
+      );
+    }
+    await ensureExecutablePermission(file);
+    return file;
+  }
 
   final libraryUri = await Isolate.resolvePackageUri(
     Uri.parse('package:font_subset/font_subset.dart'),
@@ -58,25 +72,50 @@ Future<File> fontSubsetExecutable({Abi? abi}) async {
       'Unable to resolve package:font_subset/font_subset.dart URI.',
     );
   }
+  final packageRoot = libraryUri.resolve('../');
+  final sharedCache = cacheDirectory ?? _defaultCacheDirectory();
 
-  final binaryUri = libraryUri.resolve('../binaries/$dirName/$exeName');
-  final binaryFile = File.fromUri(binaryUri);
-  if (!binaryFile.existsSync()) {
-    throw FontSubsetException(
-      'Bundled font-subset binary not found at ${binaryFile.path}.',
+  try {
+    if (effectiveMode == BuildModeEnum.fetch) {
+      final fetched = await fetchPrebuiltExecutable(
+        cacheDirectory: sharedCache,
+      );
+      if (fetched != null) {
+        return File.fromUri(fetched);
+      }
+    }
+
+    final targetTriple = targetTripleFor(OS.current, Architecture.current);
+    final built = await buildFontSubsetWithCMake(
+      packageRoot: packageRoot,
+      buildDir: sharedCache.resolve('cmake-build-$targetTriple/'),
+      installDir: sharedCache.resolve('cmake-install-$targetTriple/'),
+    );
+    return File.fromUri(built);
+  } on Object catch (e) {
+    throw FontSubsetException('Failed to resolve font-subset executable: $e');
+  }
+}
+
+Uri _defaultCacheDirectory() {
+  final hooksRunnerShared = Directory.current.uri.resolve(
+    '.dart_tool/hooks_runner/shared/font_subset/build/',
+  );
+  if (Directory.fromUri(hooksRunnerShared).existsSync()) {
+    return hooksRunnerShared;
+  }
+  return Directory.systemTemp.uri.resolve('font_subset_shared_cache/');
+}
+
+BuildModeEnum _defaultBuildMode() {
+  final env = Platform.environment['FONT_SUBSET_BUILD_MODE'];
+  if (env != null && env.isNotEmpty) {
+    return BuildModeEnum.values.firstWhere(
+      (m) => m.name == env,
+      orElse: () => BuildModeEnum.fetch,
     );
   }
-
-  if (targetAbi == Abi.current() && !Platform.isWindows) {
-    final mode = binaryFile.statSync().mode;
-    // Ensure owner execute bit (0o100 = 64) is set in case archive unpacking
-    // stripped permissions.
-    if ((mode & 0x40) == 0) {
-      await Process.run('chmod', <String>['+x', binaryFile.path]);
-    }
-  }
-
-  return binaryFile;
+  return BuildModeEnum.fetch;
 }
 
 /// Runs `font-subset` to subset [input] into [output], retaining only the

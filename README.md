@@ -1,8 +1,6 @@
 # package:font_subset
 
-Bundles the Flutter `font-subset` executable for `linux-x64`, `linux-arm64`,
-`darwin-x64`, `darwin-arm64`, `windows-x64`, and `windows-arm64`, and provides a
-Dart API to subset TTF/OTF fonts (for example from a `hook/link.dart`).
+Builds or fetches the Flutter `font-subset` executable (powered by HarfBuzz) across Linux, macOS, and Windows, and provides a Dart API to subset TTF/OTF fonts (for example from a `hook/link.dart`).
 
 ## Usage
 
@@ -20,3 +18,18 @@ Future<void> main() async {
   print(result.summaryMessage);
 }
 ```
+
+## Build Modes
+
+Configured in `pubspec.yaml` under `hooks.user_defines.font_subset` (or via the `FONT_SUBSET_BUILD_MODE` environment variable):
+
+```yaml
+hooks:
+  user_defines:
+    font_subset:
+      buildMode: fetch # 'fetch', 'checkout', or 'local'
+```
+
+- **`fetch`** *(default)*: Downloads prebuilt binaries from GitHub Releases verified against pinned SHA-256 checksums, falling back to local CMake compilation if unavailable.
+- **`checkout`** / **`build`**: Always compiles `font-subset` locally from bundled C++ and HarfBuzz sources via CMake.
+- **`local`**: Uses a custom prebuilt `font-subset` binary at `localPath`.

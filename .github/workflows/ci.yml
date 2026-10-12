@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0' # weekly
+
+jobs:
+  dart-ci:
+    name: Dart Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install Dependencies
+        run: dart pub get
+
+      - name: Verify Formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze Code
+        run: dart analyze lib test tool hook --fatal-infos
+
+  test:
+    name: Unit Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart SDK
+        uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install Dependencies
+        run: dart pub get
+
+      - name: Run Unit Tests
+        env:
+          FONT_SUBSET_BUILD_MODE: checkout
+        run: dart test
+
+  refresh-check:
+    name: Refresh HarfBuzz
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run refresh script
+        id: refresh
+        run: ./tool/bump-harfbuzz-revision.sh
+
+      - name: Check for changes
+        id: check_changes
+        run: |
+          if [ -n "$(git status --porcelain .)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Pull Request
+        if: steps.check_changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "Update HarfBuzz to ${{ steps.refresh.outputs.short_revision }}"
+          branch: "update-harfbuzz-${{ steps.refresh.outputs.short_revision }}"
+          title: "[bump-harfbuzz-revision.sh] Update HarfBuzz to ${{ steps.refresh.outputs.short_revision }}"
+          body: |
+            Automated update to the latest HarfBuzz revision [`${{ steps.refresh.outputs.revision }}`](https://github.com/harfbuzz/harfbuzz/commit/${{ steps.refresh.outputs.revision }}).
+          delete-branch: true

@@ -1,6 +1,15 @@
+## 0.2.0
+
+- Remove checked-in binaries from the package archive; instead build
+  `font-subset` from bundled C++/HarfBuzz sources via CMake or fetch SHA-256
+  verified prebuilt binaries from GitHub Releases.
+- Add `hook/build.dart` and `BuildOptions` supporting `fetch`, `checkout`
+  (`build`), and `local` build modes via `hooks.user_defines.font_subset` or
+  `FONT_SUBSET_BUILD_MODE`.
+- Add `tool/precompile_binaries.dart`, `tool/regenerate_hashes.dart`,
+  `tool/bump-harfbuzz-revision.sh`, and GitHub Actions CI & release workflows.
+
 ## 0.1.0
 
-- Initial release bundling the Flutter `font-subset` binary for `linux-x64`,
-  `linux-arm64`, `darwin-x64`, `darwin-arm64`, `windows-x64`, and
-  `windows-arm64`, with a Dart wrapper API (`subsetFont`,
+- Initial release with Dart wrapper API (`subsetFont`,
   `fontSubsetExecutable`, `isSupportedFontFile`).
