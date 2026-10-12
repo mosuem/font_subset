@@ -78,12 +78,17 @@ void main() {
 
   group('fontSubsetExecutable', () {
     test(
-      'builds executable in checkout mode and supports local mode',
+      'builds executable in checkout mode and supports fetch and local mode',
       () async {
         final exe = await fontSubsetExecutable(
           buildMode: BuildModeEnum.checkout,
         );
         expect(exe.existsSync(), isTrue);
+
+        final fetchedExe = await fontSubsetExecutable(
+          buildMode: BuildModeEnum.fetch,
+        );
+        expect(fetchedExe.existsSync(), isTrue);
 
         final localExe = await fontSubsetExecutable(
           buildMode: BuildModeEnum.local,

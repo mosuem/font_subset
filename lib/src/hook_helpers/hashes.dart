@@ -12,4 +12,17 @@ const version = releaseVersion;
 
 /// Mapping from release asset name (see `releaseAssetName`) to
 /// SHA-256 hash.
-const fileHashes = <String, String>{};
+const fileHashes = <String, String>{
+  'font_subset-linux-arm64-font-subset':
+      '98998c4e95da40180b5bf6163a6d4e1a9d205e9eae00242f255ae8e86a92cb8d',
+  'font_subset-linux-x64-font-subset':
+      '08059e7c8c5ac4624f474d9915722259c8a08e0deef8e10473da872d6a42d5c7',
+  'font_subset-macos-arm64-font-subset':
+      'ef7fc424ffcfb9e641b7860d23c602b4a17eee232789b2745d466c61cce89007',
+  'font_subset-macos-x64-font-subset':
+      'cff9fecdb52c7f0e939a2a6f72408e383bcd39cc617213374a9c27e1e362cbcc',
+  'font_subset-windows-arm64-font-subset.exe':
+      '9671693defca955cc8d084851752d7967863b2f5697a8bae49739bac551f75db',
+  'font_subset-windows-x64-font-subset.exe':
+      '797e4eec19ce5de80e8bda125e80a714c7f270f85a5d310ced97ec81bf06a5ef',
+};
