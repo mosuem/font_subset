@@ -24,20 +24,51 @@
  * Author(s): Behdad Esfahbod
  */
 
-#ifndef HB_VECTOR_SVG_PATH_HH
-#define HB_VECTOR_SVG_PATH_HH
+#ifndef HB_VECTOR_PATH_HH
+#define HB_VECTOR_PATH_HH
 
 #include "hb.hh"
 #include "hb-vector.hh"
+#include "hb-vector.h"
 #include "hb-draw.h"
+#include "hb-vector-buf.hh"
 
-struct hb_svg_path_sink_t
+/* Lightweight path sink: serializes hb_draw_* calls into an
+ * external char buffer as either SVG path-data or PDF path
+ * operators, depending on format.  Used by the vector paint
+ * backends to accumulate arbitrary clip paths (and by the
+ * SVG backend to emit glyph outlines into defs). */
+struct hb_vector_path_sink_t
 {
-  hb_vector_t<char> *path;
+  hb_vector_buf_t *path;
   unsigned precision;
+  float x_scale;
+  float y_scale;
+  int64_t *budget;
+
+  bool begin_command ()
+  {
+    return likely (!path->in_error () && !(budget && *budget < 0));
+  }
+
+  void end_command ()
+  {
+    /* Serialized bytes are bounded by the output buffer's document-size
+     * cap (in_error), not the outline work budget; stop outline traversal
+     * once that cap or an allocation error trips. */
+    if (!budget) return;
+    if (unlikely (path->in_error ()))
+      *budget = 0;
+  }
 };
 
 HB_INTERNAL hb_draw_funcs_t *
-hb_svg_path_draw_funcs_get (void);
+hb_vector_svg_path_draw_funcs_get ();
 
-#endif /* HB_VECTOR_SVG_PATH_HH */
+HB_INTERNAL hb_draw_funcs_t *
+hb_vector_pdf_path_draw_funcs_get ();
+
+HB_INTERNAL hb_draw_funcs_t *
+hb_vector_path_draw_funcs_get (hb_vector_format_t format);
+
+#endif /* HB_VECTOR_PATH_HH */
