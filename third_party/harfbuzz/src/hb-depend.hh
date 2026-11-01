@@ -1,5 +1,5 @@
 /*
- * Copyright © 2026  Behdad Esfahbod
+ * Copyright © 2024  Adobe, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -21,26 +21,44 @@
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
- * Author(s): Behdad Esfahbod
+ * Adobe Author(s): Skef Iterum
  */
 
-#ifndef HB_RASTER_SVG_GRADIENT_HH
-#define HB_RASTER_SVG_GRADIENT_HH
+#ifndef HB_DEPEND_HH
+#define HB_DEPEND_HH
 
 #include "hb.hh"
 
-#include "hb-raster-svg-color.hh"
-#include "hb-raster-svg-defs.hh"
+#include "hb-subset-depend.h"
+#include "hb-depend-data.hh"
 
-HB_INTERNAL void
-hb_raster_svg_process_gradient_def (hb_svg_defs_t *defs,
-                          hb_svg_xml_parser_t &parser,
-                          hb_svg_token_type_t tok,
-                          hb_svg_gradient_type_t type,
-                          hb_paint_funcs_t *pfuncs,
-                          void *paint_data,
-                          hb_color_t foreground,
-                          hb_face_t *face,
-                          unsigned palette);
 
-#endif /* HB_RASTER_SVG_GRADIENT_HH */
+/**
+ * hb_subset_depend_t:
+ *
+ * Internal structure implementing the dependency graph API.
+ *
+ * Initialized via hb_subset_depend_from_face_or_fail() which computes the dependency
+ * graph once via hb_depend_data_builder_t::compile(). The graph remains
+ * immutable for the lifetime of the object.
+ */
+struct hb_subset_depend_t
+{
+  HB_INTERNAL hb_subset_depend_t (hb_face_t *face);
+
+  hb_object_header_t header;
+
+  bool successful;
+
+  bool in_error () const { return !successful; }
+
+  const hb_set_t *get_set_from_index (hb_codepoint_t index)
+  {
+    return data.get_set_from_index (index);
+  }
+
+  hb_depend_data_t data;
+};
+
+
+#endif /* HB_DEPEND_HH */

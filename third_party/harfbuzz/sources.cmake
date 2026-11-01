@@ -11,6 +11,7 @@ set(
   ${HARFBUZZ_ROOT}src/hb-buffer-verify.cc
   ${HARFBUZZ_ROOT}src/hb-buffer.cc
   ${HARFBUZZ_ROOT}src/hb-common.cc
+  ${HARFBUZZ_ROOT}src/hb-depend.cc
   ${HARFBUZZ_ROOT}src/hb-draw.cc
   ${HARFBUZZ_ROOT}src/hb-face-builder.cc
   ${HARFBUZZ_ROOT}src/hb-face.cc
@@ -22,6 +23,7 @@ set(
   ${HARFBUZZ_ROOT}src/hb-ot-cff2-table.cc
   ${HARFBUZZ_ROOT}src/hb-ot-color.cc
   ${HARFBUZZ_ROOT}src/hb-ot-face.cc
+  ${HARFBUZZ_ROOT}src/hb-ot-fetch.cc
   ${HARFBUZZ_ROOT}src/hb-ot-font.cc
   ${HARFBUZZ_ROOT}src/hb-ot-layout.cc
   ${HARFBUZZ_ROOT}src/hb-ot-map.cc
@@ -58,7 +60,6 @@ set(
   ${HARFBUZZ_ROOT}src/hb-style.cc
   ${HARFBUZZ_ROOT}src/hb-subset-cff-common.cc
   ${HARFBUZZ_ROOT}src/hb-subset-cff1.cc
-  ${HARFBUZZ_ROOT}src/hb-subset-cff2-to-cff1.cc
   ${HARFBUZZ_ROOT}src/hb-subset-cff2.cc
   ${HARFBUZZ_ROOT}src/hb-subset-input.cc
   ${HARFBUZZ_ROOT}src/hb-subset-instancer-iup.cc

@@ -79,7 +79,22 @@ struct hb_raster_clip_t
       return ((int) x >= rect_x0 && (int) x < rect_x1 &&
 	      (int) y >= rect_y0 && (int) y < rect_y1) ? 255 : 0;
     if (x >= width || y >= height) return 0;
-    return alpha[y * stride + x];
+    if (stride < width) return 0;
+    if (height && stride > (size_t) -1 / height) return 0;
+    size_t idx = (size_t) y * stride + x;
+    if (!alpha.arrayZ || idx >= alpha.length) return 0;
+    return alpha[idx];
+  }
+
+  bool has_valid_alpha_mask () const
+  {
+    if (is_rect)
+      return true;
+    if (!alpha.arrayZ || stride < width)
+      return false;
+    if (height && stride > (size_t) -1 / height)
+      return false;
+    return (size_t) stride * height <= alpha.length;
   }
 };
 
@@ -96,12 +111,9 @@ struct hb_raster_paint_t
   hb_raster_extents_t fixed_extents      = {};
   bool                has_extents  = false;
   hb_color_t          foreground         = HB_COLOR (0, 0, 0, 255);
+  hb_color_t          background         = HB_COLOR (0, 0, 0, 0);
+  unsigned            palette            = 0;
   hb_map_t           *custom_palette     = nullptr;
-
-  /* SVG rendering state */
-  hb_codepoint_t      svg_glyph          = 0;
-  hb_font_t          *svg_font           = nullptr;
-  unsigned            svg_palette        = 0;
 
   /* Stacks */
   hb_vector_t<hb_transform_t<>>     transform_stack;
@@ -116,7 +128,70 @@ struct hb_raster_paint_t
   /* Internal rasterizer for clip-to-glyph */
   hb_raster_draw_t *clip_rdr = nullptr;
 
+  /* Two work budgets for the current paint session, both reset by
+   * hb_raster_paint_clear(), so per-node costs cannot multiply with the
+   * paint-graph traversal limits of the font tables driving us (e.g.
+   * COLR).  They bound different resources and must not share a counter:
+   *
+   *  - The outline budget (policy + live) bounds glyph outline traversal
+   *    and curve flattening.  It is the public draw/paint budget, seeded
+   *    into the clip rasterizer through the public draw-budget API and
+   *    read back after each glyph.  Default HB_BUDGET_GLYPH.
+   *
+   *  - The pixel budget bounds scanline/fill work, which scales with
+   *    surface area rather than outline complexity.  It is sized from the
+   *    surface once known and is internal (not exposed through the API);
+   *    an unlimited outline policy disables it too. */
+  int64_t budget = HB_BUDGET_DEFAULT;
+  int64_t budget_remaining = HB_BUDGET_GLYPH;
+  int64_t pixel_remaining = HB_BUDGET_RASTER_PIXELS;
+
   /* Helpers */
+
+  /* All surfaces in a paint session must match the root surface and clip.
+   * Configured extents are only used to create the root; render clears them. */
+  const hb_raster_extents_t &get_surface_extents () const
+  {
+    return surface_stack.length ? surface_stack[0]->extents : fixed_extents;
+  }
+
+  int64_t get_default_pixel_budget () const
+  {
+    const hb_raster_extents_t &extents = get_surface_extents ();
+    return hb_max ((int64_t) HB_BUDGET_RASTER_PIXELS,
+		   (int64_t) HB_BUDGET_RASTER_PAINT_PASSES *
+		   extents.width * extents.height);
+  }
+
+  void recharge_budget ()
+  {
+    budget_remaining = budget == HB_BUDGET_DEFAULT ?
+		       (int64_t) HB_BUDGET_GLYPH : budget;
+    pixel_remaining = budget == HB_BUDGET_UNLIMITED ? budget :
+		      (surface_stack.length ? get_default_pixel_budget () :
+					      (int64_t) HB_BUDGET_RASTER_PIXELS);
+  }
+
+  /* Returns whether the pixel operation should proceed.  Allows a single
+   * overshoot past zero; callers skip work once the budget is spent. */
+  bool charge_work (int64_t work)
+  {
+    if (unlikely (pixel_remaining < 0)) return false;
+    pixel_remaining -= work;
+    return true;
+  }
+
+  /* Reject work that would exceed the remaining budget before it starts. */
+  bool precharge_work (int64_t work)
+  {
+    if (unlikely (pixel_remaining < work))
+    {
+      pixel_remaining = -1;
+      return false;
+    }
+    pixel_remaining -= work;
+    return true;
+  }
 
   hb_raster_image_t *acquire_surface ()
   {
@@ -129,7 +204,8 @@ struct hb_raster_paint_t
       if (unlikely (!img)) return nullptr;
     }
 
-    if (unlikely (!img->configure (HB_RASTER_FORMAT_BGRA32, fixed_extents)))
+    const hb_raster_extents_t &extents = get_surface_extents ();
+    if (unlikely (!img->configure (HB_RASTER_FORMAT_BGRA32, extents)))
     {
       hb_raster_image_destroy (img);
       return nullptr;
@@ -153,6 +229,9 @@ struct hb_raster_paint_t
     clip.height = h;
     clip.stride = (w + 3u) & ~3u;
     clip.is_rect = false;
+    clip.rect_x0 = clip.rect_y0 = 0;
+    clip.rect_x1 = clip.rect_y1 = 0;
+    clip.min_x = clip.min_y = clip.max_x = clip.max_y = 0;
     return clip;
   }
 
@@ -178,8 +257,10 @@ struct hb_raster_paint_t
     return clip_stack.tail ();
   }
 
-  hb_transform_t<> &current_transform ()
+  hb_transform_t<> current_transform ()
   {
+    if (unlikely (!transform_stack.length))
+      return {1, 0, 0, 1, 0, 0};
     return transform_stack.tail ();
   }
 
@@ -198,6 +279,18 @@ struct hb_raster_paint_t
     hb_transform_t<> t = current_transform ();
     apply_scale_factor (t);
     return t;
+  }
+
+  bool fetch_color_stops (hb_color_line_t *color_line)
+  {
+    unsigned count = hb_color_line_get_color_stops (color_line, 0, nullptr, nullptr);
+    if (unlikely (!count || !scratch_color_stops.resize (count)))
+    {
+      scratch_color_stops.resize (0);
+      return false;
+    }
+    hb_color_line_get_color_stops (color_line, 0, &count, scratch_color_stops.arrayZ);
+    return true;
   }
 };
 
